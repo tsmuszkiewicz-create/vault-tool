@@ -59,6 +59,7 @@
         }
       });
       const t = Vault.getLastSync();
+      Board.loadOrder();
       $('sync-meta').textContent = 'Sync ' + t.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
       renderSidebar();
       renderMain();
@@ -313,10 +314,14 @@
     $('add-task-btn').onclick = () => openTaskModal();
 
     const projects = Board.getProjects();
-    let chips = `<button class="proj-chip${!state.boardProject ? ' active' : ''}" data-board="">☰ Übersicht</button>`;
+    let projItems = `<button class="proj-item${!state.boardProject ? ' active' : ''}" data-board="">
+      <span class="proj-grip"></span><span class="proj-name">☰ Übersicht</span></button>`;
     projects.forEach((p) => {
-      chips += `<button class="proj-chip${state.boardProject === p.id ? ' active' : ''}" data-board="${p.id}">
-        ${esc(p.nameNoExt)}<span class="n">${p.openCount}</span></button>`;
+      projItems += `<button class="proj-item${state.boardProject === p.id ? ' active' : ''}"
+        data-board="${p.id}" data-name="${esc(p.nameNoExt)}" draggable="true">
+        <span class="proj-grip" title="Zum Sortieren ziehen">⠿</span>
+        <span class="proj-name">${esc(p.nameNoExt)}</span>
+        <span class="n">${p.openCount}</span></button>`;
     });
 
     const buckets = Board.getColumns(state.boardProject);
@@ -330,7 +335,10 @@
     }).join('');
 
     $('main-body').innerHTML = `<div class="board-wrap">
-      <div class="proj-chips">${chips}</div>
+      <div class="proj-list" id="proj-list">
+        <div class="proj-list-t">Projekte</div>
+        ${projItems}
+      </div>
       <div class="board">${colsHtml}</div>
     </div>`;
   }
@@ -427,9 +435,9 @@
         if (target) boardMove(t, target);
         return;
       }
-      const chip = e.target.closest('.proj-chip');
-      if (chip) {
-        state.boardProject = chip.dataset.board || null;
+      const item = e.target.closest('.proj-item');
+      if (item) {
+        state.boardProject = item.dataset.board || null;
         renderBoard();
         return;
       }
@@ -451,18 +459,33 @@
 
     // Drag & Drop fürs Board (delegiert, überlebt Re-Renders)
     $('main-body').addEventListener('dragstart', (e) => {
+      const proj = e.target.closest('.proj-item[data-name]');
+      if (proj) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'proj|' + proj.dataset.name);
+        proj.classList.add('dragging');
+        return;
+      }
       const card = e.target.closest('.bcard');
       if (!card) return;
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', card.dataset.note + '|' + card.dataset.line);
+      e.dataTransfer.setData('text/plain', 'card|' + card.dataset.note + '|' + card.dataset.line);
       card.classList.add('dragging');
     });
     $('main-body').addEventListener('dragend', (e) => {
-      const card = e.target.closest('.bcard');
-      if (card) card.classList.remove('dragging');
-      document.querySelectorAll('.bcol.over').forEach((c) => c.classList.remove('over'));
+      const el = e.target.closest('.bcard, .proj-item');
+      if (el) el.classList.remove('dragging');
+      document.querySelectorAll('.bcol.over, .proj-item.over').forEach((c) => c.classList.remove('over'));
     });
     $('main-body').addEventListener('dragover', (e) => {
+      const proj = e.target.closest('.proj-item[data-name]');
+      if (proj) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        document.querySelectorAll('.proj-item.over').forEach((c) => { if (c !== proj) c.classList.remove('over'); });
+        proj.classList.add('over');
+        return;
+      }
       const col = e.target.closest('.bcol');
       if (!col) return;
       e.preventDefault();
@@ -471,18 +494,33 @@
       col.classList.add('over');
     });
     $('main-body').addEventListener('dragleave', (e) => {
+      const proj = e.target.closest('.proj-item');
+      if (proj && !proj.contains(e.relatedTarget)) proj.classList.remove('over');
       const col = e.target.closest('.bcol');
       if (col && !col.contains(e.relatedTarget)) col.classList.remove('over');
     });
     $('main-body').addEventListener('drop', (e) => {
+      const data = e.dataTransfer.getData('text/plain');
+      if (!data) return;
+      const parts = data.split('|');
+
+      if (parts[0] === 'proj') {
+        const proj = e.target.closest('.proj-item[data-name]');
+        e.preventDefault();
+        document.querySelectorAll('.proj-item.over').forEach((c) => c.classList.remove('over'));
+        const targetName = proj ? proj.dataset.name : null; // null = ans Ende
+        if (parts[1] === targetName) return;
+        Board.reorderProjects(parts[1], targetName)
+          .then(() => { renderBoard(); toast('Reihenfolge gespeichert ✓'); })
+          .catch((err) => { toast('Fehler beim Sortieren'); console.error(err); renderBoard(); });
+        return;
+      }
+
       const col = e.target.closest('.bcol');
       if (!col) return;
       e.preventDefault();
       col.classList.remove('over');
-      const data = e.dataTransfer.getData('text/plain');
-      if (!data) return;
-      const [noteId, line] = data.split('|');
-      boardMove({ noteId, lineIndex: Number(line) }, col.dataset.col);
+      boardMove({ noteId: parts[1], lineIndex: Number(parts[2]) }, col.dataset.col);
     });
 
     $('m-cancel').onclick = closeTaskModal;
