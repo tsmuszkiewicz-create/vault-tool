@@ -112,6 +112,7 @@
 <div id="overlay">
   <div class="modal">
     <h2>Neue Aufgabe</h2>
+    <div id="modal-target" style="display:none; font-size:12.5px; color:var(--teal-fg); font-weight:600; margin:-6px 0 10px;"></div>
     <div class="fg">
       <label>Aufgabe</label>
       <textarea id="m-text" placeholder="Was ist zu tun?" rows="2"></textarea>
@@ -130,7 +131,7 @@
         <input type="date" id="m-date">
       </div>
     </div>
-    <div class="fg">
+    <div class="fg" id="m-tag-fg">
       <label>Tag (optional, z.B. für Verknüpfung mit Rocks/Zielen)</label>
       <input type="text" id="m-tag" placeholder="z.B. rock-q3-r1">
     </div>
