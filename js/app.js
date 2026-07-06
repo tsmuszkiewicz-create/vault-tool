@@ -303,6 +303,7 @@
   }
 
   function renderBoard() {
+    state.view = 'board';
     const project = state.boardProject ? Vault.getNote(state.boardProject) : null;
     if (state.boardProject && !project) state.boardProject = null;
 
@@ -471,6 +472,7 @@
       }
       const item = e.target.closest('.proj-item');
       if (item) {
+        state.view = 'board';
         state.boardProject = item.dataset.board || null;
         renderBoard();
         return;
