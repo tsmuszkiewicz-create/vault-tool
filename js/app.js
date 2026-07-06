@@ -6,7 +6,8 @@
   const $ = (id) => document.getElementById(id);
 
   const state = {
-    view: 'dashboard',       // 'dashboard' | 'note' | 'tag'
+    view: 'dashboard',       // 'dashboard' | 'board' | 'note' | 'tag'
+    boardProject: null,      // null = Übersicht, sonst Notiz-ID des Projekts
     noteId: null,
     tag: null,
     editing: false,
@@ -134,7 +135,10 @@
     state.editing = false;
     const notesActive = view === 'note' || view === 'notes' || view === 'tag';
     document.querySelectorAll('.sb-nav button').forEach((b) => {
-      b.classList.toggle('active', (b.dataset.view === 'dashboard' && view === 'dashboard') || (b.dataset.view === 'notes' && notesActive));
+      b.classList.toggle('active',
+        (b.dataset.view === 'dashboard' && view === 'dashboard') ||
+        (b.dataset.view === 'board' && view === 'board') ||
+        (b.dataset.view === 'notes' && notesActive));
     });
     renderSidebar();
     renderMain();
@@ -143,6 +147,7 @@
 
   function renderMain() {
     if (state.view === 'dashboard') return renderDashboard();
+    if (state.view === 'board') return renderBoard();
     if (state.view === 'note' || state.view === 'notes') return renderNoteView(state.noteId);
     if (state.view === 'tag') return renderTagView(state.tag);
   }
@@ -274,6 +279,68 @@
     </div>`;
   }
 
+  // ---------------- BOARD ----------------
+  function boardCardHtml(t) {
+    const badges = [];
+    if (t.due) badges.push(`<span class="badge bb">📅 ${esc(t.due)}</span>`);
+    if (t.priority === 'high') badges.push(`<span class="badge br">⏫</span>`);
+    if (t.done && t.completedOn) badges.push(`<span class="badge bg">✅ ${esc(t.completedOn)}</span>`);
+    const colIdx = Board.columnIndexOf(t);
+    const last = Board.ORDER.length - 1;
+    const source = state.boardProject ? '' :
+      `<span class="src-link" data-action="open-note" data-note="${t.noteId}">${esc(t.noteName.replace(/\.md$/i, ''))}</span>`;
+    return `<div class="bcard" draggable="true" data-note="${t.noteId}" data-line="${t.lineIndex}">
+      <div class="bcard-t${t.done ? ' done' : ''}">${esc(t.text)}</div>
+      <div class="bcard-m">
+        ${badges.join('')}${source}
+        <span class="bmove">
+          <button class="mv" data-action="board-move" data-dir="-1" ${colIdx <= 0 ? 'disabled' : ''} title="Spalte zurück">‹</button>
+          <button class="mv" data-action="board-move" data-dir="1" ${colIdx >= last ? 'disabled' : ''} title="Spalte weiter">›</button>
+        </span>
+      </div>
+    </div>`;
+  }
+
+  function renderBoard() {
+    const project = state.boardProject ? Vault.getNote(state.boardProject) : null;
+    if (state.boardProject && !project) state.boardProject = null;
+
+    $('main-title-text').textContent = 'Board';
+    $('main-title-path').textContent = project ? project.nameNoExt : 'Übersicht · alle Aufgaben';
+    $('main-actions').innerHTML = `<button class="btn btn-p" id="add-task-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Aufgabe</button>`;
+    $('add-task-btn').onclick = () => openTaskModal();
+
+    const projects = Board.getProjects();
+    let chips = `<button class="proj-chip${!state.boardProject ? ' active' : ''}" data-board="">☰ Übersicht</button>`;
+    projects.forEach((p) => {
+      chips += `<button class="proj-chip${state.boardProject === p.id ? ' active' : ''}" data-board="${p.id}">
+        ${esc(p.nameNoExt)}<span class="n">${p.openCount}</span></button>`;
+    });
+
+    const buckets = Board.getColumns(state.boardProject);
+    const colsHtml = Board.COLUMNS.map((c) => {
+      const list = buckets[c.id];
+      const count = c.id === 'done' ? buckets.doneTotal : list.length;
+      return `<div class="bcol" data-col="${c.id}">
+        <div class="bcol-h"><span>${c.title}</span><span class="n">${count}</span></div>
+        <div class="bcol-body">${list.map(boardCardHtml).join('') || '<div class="bempty">Karten hierher ziehen</div>'}</div>
+      </div>`;
+    }).join('');
+
+    $('main-body').innerHTML = `<div class="board-wrap">
+      <div class="proj-chips">${chips}</div>
+      <div class="board">${colsHtml}</div>
+    </div>`;
+  }
+
+  function boardMove(ref, targetCol) {
+    Board.moveTask(ref, targetCol)
+      .then(() => { renderMain(); toast('Verschoben ✓'); })
+      .catch((e) => { toast('Fehler beim Verschieben'); console.error(e); renderMain(); });
+  }
+
   // ---------------- TASK MODAL ----------------
   function openTaskModal() {
     $('m-text').value = '';
@@ -320,7 +387,11 @@
     $('menu-btn').onclick = () => $('sidebar').classList.toggle('open');
 
     document.querySelectorAll('.sb-nav button').forEach((btn) => {
-      btn.onclick = () => setView(btn.dataset.view === 'notes' ? (state.noteId ? 'note' : 'notes') : 'dashboard');
+      btn.onclick = () => {
+        const v = btn.dataset.view;
+        if (v === 'notes') setView(state.noteId ? 'note' : 'notes');
+        else setView(v);
+      };
     });
 
     $('search-input').addEventListener('input', debounce((e) => {
@@ -344,6 +415,24 @@
     });
 
     $('main-body').addEventListener('click', (e) => {
+      const mv = e.target.closest('[data-action="board-move"]');
+      if (mv && !mv.disabled) {
+        const card = mv.closest('.bcard');
+        const t = { noteId: card.dataset.note, lineIndex: Number(card.dataset.line) };
+        const note = Vault.getNote(t.noteId);
+        const task = note && note.tasks.find((x) => x.lineIndex === t.lineIndex);
+        if (!task) return;
+        const idx = Board.columnIndexOf(task) + Number(mv.dataset.dir);
+        const target = Board.ORDER[idx];
+        if (target) boardMove(t, target);
+        return;
+      }
+      const chip = e.target.closest('.proj-chip');
+      if (chip) {
+        state.boardProject = chip.dataset.board || null;
+        renderBoard();
+        return;
+      }
       const chk = e.target.closest('[data-action="toggle"]');
       if (chk) { handleToggle(chk); return; }
       const openN = e.target.closest('[data-action="open-note"]');
@@ -358,6 +447,42 @@
         if (wl.dataset.id) setView('note', wl.dataset.id);
         else toast(`Notiz "${wl.dataset.target}" nicht gefunden`);
       }
+    });
+
+    // Drag & Drop fürs Board (delegiert, überlebt Re-Renders)
+    $('main-body').addEventListener('dragstart', (e) => {
+      const card = e.target.closest('.bcard');
+      if (!card) return;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.dataset.note + '|' + card.dataset.line);
+      card.classList.add('dragging');
+    });
+    $('main-body').addEventListener('dragend', (e) => {
+      const card = e.target.closest('.bcard');
+      if (card) card.classList.remove('dragging');
+      document.querySelectorAll('.bcol.over').forEach((c) => c.classList.remove('over'));
+    });
+    $('main-body').addEventListener('dragover', (e) => {
+      const col = e.target.closest('.bcol');
+      if (!col) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.bcol.over').forEach((c) => { if (c !== col) c.classList.remove('over'); });
+      col.classList.add('over');
+    });
+    $('main-body').addEventListener('dragleave', (e) => {
+      const col = e.target.closest('.bcol');
+      if (col && !col.contains(e.relatedTarget)) col.classList.remove('over');
+    });
+    $('main-body').addEventListener('drop', (e) => {
+      const col = e.target.closest('.bcol');
+      if (!col) return;
+      e.preventDefault();
+      col.classList.remove('over');
+      const data = e.dataTransfer.getData('text/plain');
+      if (!data) return;
+      const [noteId, line] = data.split('|');
+      boardMove({ noteId, lineIndex: Number(line) }, col.dataset.col);
     });
 
     $('m-cancel').onclick = closeTaskModal;
