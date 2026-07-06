@@ -210,5 +210,36 @@ const Board = (() => {
     await Vault.reindexNote(note.id, raw);
   }
 
-  return { COLUMNS, ORDER, classify, columnIndexOf, getProjects, getColumns, moveTask, loadOrder, reorderProjects };
+  // Fügt eine neue Aufgabe in eine Projektnotiz ein – unter der Überschrift
+  // "Nächste Schritte", damit sie zum bestehenden Aufbau der Projektdateien passt.
+  async function addTaskToProject(projectNoteId, { text, column, due, high }) {
+    const note = Vault.getNote(projectNoteId);
+    if (!note) throw new Error('Projekt nicht gefunden');
+
+    // Fälligkeitsdatum aus Spaltenwahl ableiten (leer = Inbox)
+    const dueDate = due || dueFor(column);
+    let line = `- [ ] ${text.trim()}`;
+    if (dueDate) line += ` 📅 ${dueDate}`;
+    if (high) line += ' ⏫';
+
+    const lines = note.raw.split('\n');
+    // Zeile der "Nächste Schritte"-Überschrift suchen
+    let hIdx = lines.findIndex((l) => /^#{1,6}\s+Nächste Schritte/i.test(l));
+    let raw;
+    if (hIdx === -1) {
+      // Keine Überschrift vorhanden → am Ende anlegen
+      raw = note.raw.replace(/\s*$/, '') + `\n\n## Nächste Schritte\n\n${line}\n`;
+    } else {
+      // Direkt unter die Überschrift einfügen (nach evtl. Leerzeile)
+      let insertAt = hIdx + 1;
+      if (lines[insertAt] !== undefined && lines[insertAt].trim() === '') insertAt++;
+      lines.splice(insertAt, 0, line);
+      raw = lines.join('\n');
+    }
+
+    await Drive.writeText(note.id, raw);
+    await Vault.reindexNote(note.id, raw);
+  }
+
+  return { COLUMNS, ORDER, classify, columnIndexOf, getProjects, getColumns, moveTask, addTaskToProject, loadOrder, reorderProjects };
 })();
