@@ -13,7 +13,7 @@
 //    Drive-URL nach ".../folders/").
 // ================================================================
 const CONFIG = {
-  CLIENT_ID: CLIENT_ID: '1077680929018-gkurinrh20ktp2o7un2riijam5lo3g3m.apps.googleusercontent.com',
+  CLIENT_ID: '1077680929018-gkurinrh20ktp2o7un2riijam5lo3g3m.apps.googleusercontent.com',
 
   // "Lugert Verlag"-Unterordner = dein eigentlicher Notiz-Vault
   ROOT_FOLDER_ID: '1TxmGBrBUTBisa44bDqFXaQz1QgoOoF3a',
