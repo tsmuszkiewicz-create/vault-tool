@@ -354,7 +354,33 @@
     $('m-text').value = '';
     $('m-date').value = '';
     $('m-tag').value = '';
-    $('m-prio').value = 'week';
+    const prio = $('m-prio');
+    const inProject = state.view === 'board' && state.boardProject;
+
+    if (inProject) {
+      // Im Projekt-Board: Spalten-Auswahl, Standard = Inbox
+      const proj = Vault.getNote(state.boardProject);
+      prio.innerHTML = `
+        <option value="inbox" selected>Inbox</option>
+        <option value="week">Diese Woche</option>
+        <option value="today">Heute</option>`;
+      const label = prio.closest('.fg').querySelector('label');
+      if (label) label.textContent = 'Spalte';
+      $('modal-target').textContent = proj ? `→ ${proj.nameNoExt}` : '';
+      $('modal-target').style.display = 'block';
+      $('m-tag-fg').style.display = 'none';
+    } else {
+      // Sonst: klassische TASKS.md-Kategorien
+      prio.innerHTML = `
+        <option value="critical">Kritisch / Überfällig</option>
+        <option value="week" selected>Diese Woche</option>
+        <option value="project">Aktive Projekte</option>`;
+      const label = prio.closest('.fg').querySelector('label');
+      if (label) label.textContent = 'Priorität';
+      $('modal-target').style.display = 'none';
+      $('m-tag-fg').style.display = 'block';
+    }
+
     $('overlay').classList.add('open');
     setTimeout(() => $('m-text').focus(), 50);
   }
@@ -363,12 +389,20 @@
   async function saveTaskFromModal() {
     const text = $('m-text').value.trim();
     if (!text) return;
-    const priority = $('m-prio').value;
+    const choice = $('m-prio').value;
     const due = $('m-date').value;
     const tag = $('m-tag').value.trim();
+    const inProject = state.view === 'board' && state.boardProject;
     closeTaskModal();
     try {
-      await Tasks.addTask({ text, priority, due, tag });
+      if (inProject) {
+        // Direkt in die Projektdatei; Spalte = Inbox/Woche/Heute
+        await Board.addTaskToProject(state.boardProject, {
+          text, column: choice, due, high: false,
+        });
+      } else {
+        await Tasks.addTask({ text, priority: choice, due, tag });
+      }
       renderSidebar();
       renderMain();
       toast('Aufgabe gespeichert ✓');
