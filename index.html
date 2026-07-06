@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Vault</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1D9E75">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        <path d="M7 14h4M7 17h7"/>
+      </svg>
+    </div>
+    <h1>Vault</h1>
+    <p>Deine Notizen &amp; Aufgaben – direkt aus Google Drive.</p>
+    <div class="setup-box" id="setup-box">
+      <strong>Einrichtung nötig:</strong> Trage deine Google Client-ID in <code>js/config.js</code> ein.<br><br>
+      1. <a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a> → Projekt öffnen<br>
+      2. Google Drive API aktivieren<br>
+      3. OAuth-Client anlegen (Web), Origin: diese Domain eintragen<br>
+      4. Client-ID in <code>CONFIG.CLIENT_ID</code> eintragen
+    </div>
+    <button class="btn-google" id="login-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Mit Google anmelden
+    </button>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="app">
+  <div class="shell">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div class="sb-head">
+        <div class="sb-brand">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Vault
+        </div>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="search-input" placeholder="Volltextsuche…">
+        </div>
+      </div>
+      <div class="sb-nav">
+        <button class="active" id="nav-dashboard" data-view="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 5-5"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          Aufgaben
+        </button>
+        <button id="nav-notes" data-view="notes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          Notizen
+        </button>
+      </div>
+      <div class="sb-body" id="sb-body">
+        <div class="loading"><span class="spin">↻</span> Noch nicht synchronisiert</div>
+      </div>
+      <div class="sb-foot">
+        <div class="avatar" id="avatar">T</div>
+        <div class="sb-foot-meta" id="sync-meta">Nicht synchronisiert</div>
+        <button class="icon-btn" id="sync-btn" title="Mit Drive synchronisieren">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+        <button class="icon-btn" id="logout-btn" title="Abmelden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <div class="main-hdr">
+        <div class="main-title">
+          <button class="icon-btn" id="menu-btn" title="Menü">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <span id="main-title-text">Aufgaben</span>
+          <span class="path" id="main-title-path"></span>
+        </div>
+        <div class="main-actions" id="main-actions"></div>
+      </div>
+      <div class="main-body" id="main-body">
+        <div class="loading"><span class="spin">↻</span> Lädt…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== NEUE AUFGABE MODAL ===== -->
+<div id="overlay">
+  <div class="modal">
+    <h2>Neue Aufgabe</h2>
+    <div class="fg">
+      <label>Aufgabe</label>
+      <textarea id="m-text" placeholder="Was ist zu tun?" rows="2"></textarea>
+    </div>
+    <div class="fr">
+      <div class="fg">
+        <label>Priorität</label>
+        <select id="m-prio">
+          <option value="critical">Kritisch / Überfällig</option>
+          <option value="week" selected>Diese Woche</option>
+          <option value="project">Aktive Projekte</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Deadline</label>
+        <input type="date" id="m-date">
+      </div>
+    </div>
+    <div class="fg">
+      <label>Tag (optional, z.B. für Verknüpfung mit Rocks/Zielen)</label>
+      <input type="text" id="m-tag" placeholder="z.B. rock-q3-r1">
+    </div>
+    <div class="m-actions">
+      <button class="btn" id="m-cancel">Abbrechen</button>
+      <button class="btn btn-p" id="m-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/drive.js"></script>
+<script src="js/markdown.js"></script>
+<script src="js/vault.js"></script>
+<script src="js/tasks.js"></script>
+<script src="js/app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
