@@ -3,7 +3,7 @@
 // damit die App auch offline sofort startet. Google-Drive-Daten
 // werden NIE gecacht - die App arbeitet immer live gegen Drive.
 // ============================================================
-const CACHE_NAME = 'vault-app-shell-v1';
+const CACHE_NAME = 'vault-app-shell-v2';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -14,6 +14,7 @@ const SHELL_FILES = [
   './js/markdown.js',
   './js/vault.js',
   './js/tasks.js',
+  './js/board.js',
   './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png'
